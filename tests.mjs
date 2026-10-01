@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import * as L from './lib.js';
+import {parseSchedule,parseIcs} from './import.js';
+import {RECIPES,dailyPicks} from './meals.js';
+assert.equal(L.addDays('2026-03-07',2),'2026-03-09');assert.equal(L.diffDays('2026-03-07','2026-03-09'),2);
+assert.equal(L.addMonths('2026-01-31',1),'2026-02-28');
+const ev={id:'a',date:'2026-10-01',start:'18:00',end:'19:00',repeat:{freq:'weekly',days:[2,4],interval:2},exdates:['2026-10-15']};
+assert.deepEqual(L.occurrences(ev,'2026-10-01','2026-10-31').map(o=>o.date),['2026-10-01','2026-10-13','2026-10-27','2026-10-29']);
+assert.equal(L.occurrences({id:'b',date:'2026-10-01',endDate:'2026-10-03'},'2026-10-02','2026-10-02').length,1);
+assert.equal(L.occurrences({date:'2026-01-31',repeat:{freq:'monthly'}},'2026-02-01','2026-03-31').length,1);
+const laid=L.layoutDay([{s:60,e:120},{s:90,e:150},{s:200,e:240}]);assert.equal(laid[0].cols,2);assert.equal(laid[2].cols,1);
+assert.equal(L.holidaysBetween('2026-10-01','2026-10-31').find(h=>h.name==='Thanksgiving').date,'2026-10-12');
+const pasted=parseSchedule('2026-10-04 9am vs Ajax @ Field 3');assert.equal(pasted.events[0].start,'09:00');assert.equal(pasted.events[0].location,'Field 3');
+const imported=parseIcs(L.calendarFile({...ev,title:'Game, one'})).events[0];assert.equal(imported.title,'Game, one');assert.deepEqual(imported.exdates,ev.exdates);assert.equal(imported.repeat.interval,2);
+assert.equal(new Set(RECIPES.map(r=>r.id)).size,RECIPES.length);assert.ok(RECIPES.every(r=>r.ingredients.length&&r.steps.length));assert.equal(new Set(dailyPicks('2026-10-01',4).map(r=>r.id)).size,4);
+console.log('Calendar, import, exports, overlap layout and recipe checks passed.');

@@ -1,0 +1,11 @@
+{
+  "name": "family-hub",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --check app.js && node --check store.js && node --check lib.js && node --check meals.js && node --check import.js && node --check sw.js && node tests.mjs && node backend-tests.mjs",
+    "serve": "python3 -m http.server 4173",
+    "build": "node scripts/build.mjs"
+  }
+}
