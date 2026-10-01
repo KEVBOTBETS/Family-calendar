@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {moveCalendarEvent,taskProgress} from './interactions.js';
+const ev={id:'trip',date:'2026-10-01',endDate:'2026-10-03',title:'Tournament',repeat:{freq:'weekly',days:[4],until:'2026-11-01'},exdates:['2026-10-15']};
+let moved=moveCalendarEvent(ev,'2026-10-08','2026-10-09');
+assert.equal(moved.detached.date,'2026-10-09');assert.equal(moved.detached.endDate,'2026-10-11');assert.equal(moved.detached.repeat.freq,'none');assert.deepEqual(moved.series.exdates,['2026-10-15','2026-10-08']);assert.deepEqual(ev.exdates,['2026-10-15']);
+moved=moveCalendarEvent(ev,'2026-10-08','2026-10-10','series');assert.equal(moved.series.date,'2026-10-03');assert.equal(moved.series.endDate,'2026-10-05');assert.deepEqual(moved.series.repeat.days,[6]);assert.equal(moved.series.repeat.until,'2026-11-03');assert.deepEqual(moved.series.exdates,['2026-10-17']);
+moved=moveCalendarEvent({...ev,repeat:{freq:'none'}},'2026-10-01','2026-09-30');assert.equal(moved.series.endDate,'2026-10-02');assert.equal(moved.series.date,'2026-09-30');
+assert.deepEqual(moveCalendarEvent(ev,'2026-10-01','2026-10-01'),{unchanged:true});assert.throws(()=>moveCalendarEvent(ev,ev.date,'2026-02-31'));
+assert.deepEqual(taskProgress([{done:true},{done:false},{done:true}],x=>x.done),{total:3,done:2,percent:67});assert.deepEqual(taskProgress([],()=>false),{total:0,done:0,percent:0});
+console.log('Event moves preserve repeats, skipped dates and multi-day durations. Chore progress passed.');

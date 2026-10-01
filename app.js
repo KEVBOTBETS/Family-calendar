@@ -1,6 +1,7 @@
 // Family Hub — shared family calendar & dashboard
 import CONFIG from './config.js';
-import { store, ls, uid } from './store.js';
+import { store, ls, uid, DEMO } from './store.js';
+import { moveCalendarEvent, taskProgress } from './interactions.js';
 import * as L from './lib.js';
 import { RECIPES, CUISINES, MEAL_TYPES, dailyPicks } from './meals.js';
 import { parseSchedule, parseIcs } from './import.js';
@@ -13,12 +14,33 @@ const modalRoot = document.getElementById('modal-root');
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const isWide = () => window.matchMedia('(min-width: 860px)').matches;
 
+const ICON_PATHS={home:'M3 10 12 3l9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z M9 21v-8h6v8',calendar:'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2',check:'m5 12 4 4L19 6',chores:'M9 5h10M9 12h10M9 19h10M3 5l1 1 2-2M3 12l1 1 2-2M3 19l1 1 2-2',meals:'M4 3v7a2 2 0 0 0 4 0V3M6 3v18M17 3v18M17 3c-4 4-4 9 0 9',shopping:'M3 3h2l3 12h10l3-9H6M9 21h.01M18 21h.01',settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2',plus:'M12 5v14M5 12h14',left:'m14 6-6 6 6 6',right:'m10 6 6 6-6 6',sun:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5',moon:'M20 14a8 8 0 0 1-10-10 8 8 0 1 0 10 10',expand:'M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5',search:'M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14m5 12 6 6',close:'m6 6 12 12M6 18 18 6',star:'m12 3 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2L12 17.3l-5.7 2.9 1.1-6.2-4.5-4.4 6.3-.9Z',pin:'M12 22s7-7 7-13a7 7 0 1 0-14 0c0 6 7 13 7 13ZM12 7v4',clock:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 7v5l3 2',note:'M4 3h16v12l-6 6H4ZM14 21v-6h6M8 8h8M8 12h5',family:'M8 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6M2 21v-4a6 6 0 0 1 12 0v4M14 14a5 5 0 0 1 8 4v3',spark:'m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5ZM20 2v4m-2-2h4',move:'M12 3v18M3 12h18m-12-6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3m12-6 3 3-3 3',edit:'m16 3 5 5-12 12-6 1 1-6ZM13 6l5 5',lock:'M5 10h14v11H5ZM8 10V6a4 4 0 0 1 8 0v4'};
+function icon(name,size=20){return `<svg class="ui-icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON_PATHS[name]||ICON_PATHS.spark}"/></svg>`;}
+function celebrate() {
+ if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ const root=document.createElement('div');root.className='celebration';root.setAttribute('aria-hidden','true');
+ root.innerHTML=Array.from({length:22},(_,i)=>`<i style="--x:${15+Math.random()*70}vw;--delay:${Math.random()*.3}s;--rotation:${Math.random()*360}deg;--color:${L.PALETTE[i%L.PALETTE.length]}"></i>`).join('');document.body.append(root);setTimeout(()=>root.remove(),1700);
+ if(navigator.vibrate)navigator.vibrate(35);
+}
+function quickAdd(){openModal(`<div class="modal-head"><div><p class="eyebrow">MAKE ROOM FOR THE LITTLE THINGS</p><h2>What are we adding?</h2></div><button class="icon-btn" data-act="close" aria-label="Close">${icon('close')}</button></div><div class="modal-body quick-create-grid">${[['new-event','calendar','An event','Something to look forward to'],['new-routine','chores','A daily routine','Little jobs for the whole team'],['quick-need','shopping','A list item','Never forget the milk again'],['new-note','note','A fridge note','A reminder, or a little love']].map(([act,ico,title,sub])=>`<button class="quick-create" data-act="${act}">${icon(ico,26)}<b>${title}</b><small>${sub}</small></button>`).join('')}</div>`);}
+function searchDialog(){openModal(`<div class="modal-head"><h2>Find your family's plans</h2><button class="icon-btn" data-act="close" aria-label="Close">${icon('close')}</button></div><div class="modal-body"><div class="search-field">${icon('search')}<input class="input" type="search" data-input="global-search" placeholder="Search events, lists and recipes…" aria-label="Search family plans" autofocus/></div><div id="global-results" class="global-results"><p class="muted">Try an event, a place, a grocery or a favourite recipe.</p></div></div>`);}
+function searchFamily(query){const q=query.trim().toLowerCase(),root=$('#global-results');if(!root)return;if(!q){root.innerHTML='<p class="muted">Try an event, a place, a grocery or a favourite recipe.</p>';return;}
+ const events=store.list('event').filter(e=>[e.title,e.location,e.notes].join(' ').toLowerCase().includes(q)).slice(0,8),needs=store.list('need').filter(n=>!n.done&&n.text.toLowerCase().includes(q)).slice(0,5),recipes=allRecipes().filter(r=>r.name.toLowerCase().includes(q)).slice(0,5);
+ root.innerHTML=(events.length?'<p class="eyebrow">EVENTS</p>'+events.map(e=>{const o=L.occurrences(e,L.today(),L.addDays(L.today(),365))[0];return `<button class="search-result" data-act="open-event" data-id="${esc(e.id)}" data-date="${o?.date||e.date}">${icon('calendar')}<span><b>${esc(e.title)}</b><small>${esc(L.relDay(o?.date||e.date))} · ${esc(e.location||'Family calendar')}</small></span>${icon('right',15)}</button>`;}).join(''):'')+(needs.length?'<p class="eyebrow">LISTS</p>'+needs.map(n=>`<button class="search-result" data-act="search-need" data-list="${n.list}">${icon('shopping')}<span><b>${esc(n.text)}</b><small>${esc(L.NEED_LISTS.find(x=>x.id===n.list)?.name||'Lists')}</small></span>${icon('right',15)}</button>`).join(''):'')+(recipes.length?'<p class="eyebrow">RECIPES</p>'+recipes.map(r=>`<button class="search-result" data-act="open-recipe" data-id="${r.id}">${icon('meals')}<span><b>${esc(r.name)}</b><small>${r.time} minutes</small></span>${icon('right',15)}</button>`).join(''):'')||'<div class="empty"><p>No matches yet. Try another word.</p></div>';
+}
+function goalDialog(person){const p=personById(person);if(!p)return;const goal=store.get('goal_'+person)||{title:'Choose a family activity',target:10};openModal(`<form class="editor" data-submit="save-goal" data-id="${person}"><div class="modal-head"><h2>${esc(p.name)}’s star goal</h2><button type="button" class="icon-btn" data-act="close" aria-label="Close">${icon('close')}</button></div><div class="modal-body"><p class="muted">A little motivation for the last 7 days. Each completed job earns one star for the person who ticks it off.</p><label class="field"><span class="label">Something to look forward to</span><input class="input" name="title" value="${esc(goal.title)}" maxlength="80" required/></label><label class="field"><span class="label">Star target</span><input class="input" name="target" type="number" min="1" max="100" value="${goal.target}" required/></label></div><div class="modal-foot"><span></span><button class="btn primary">Save goal</button></div></form>`);}
+function moveDialog(el){const ev=store.get(el.dataset.id);if(!ev)return;openModal(`<form class="editor" data-submit="move-event" data-id="${esc(ev.id)}" data-date="${el.dataset.date}"><div class="modal-head"><h2>Make a little room</h2><button type="button" class="icon-btn" data-act="close" aria-label="Close">${icon('close')}</button></div><div class="modal-body"><p class="muted">Move <b>${esc(ev.title)}</b> to a new day. Its time and details stay the same.</p><label class="field"><span class="label">New date</span><input class="input" type="date" name="date" value="${el.dataset.date}" required/></label>${ev.repeat?.freq&&ev.repeat.freq!=='none'?'<label class="field"><span class="label">Move</span><select class="select" name="scope"><option value="occurrence">Just this occurrence</option><option value="series">The entire series</option></select></label>':''}</div><div class="modal-foot"><span></span><button class="btn primary">Move event</button></div></form>`);}
+function moveEvent(id,from,to,scope='occurrence'){const ev=store.get(id);if(!ev)return;try{const result=moveCalendarEvent(ev,from,to,scope);if(result.unchanged)return;store.put('event',result.series);const detached=result.detached?store.put('event',result.detached):null;closeModal(true);renderPage();toast('Moved to '+L.fmtDate(to,{weekday:'short',month:'short',day:'numeric'}),()=>{store.put('event',ev);if(detached)store.remove(detached.id);renderPage();});}catch(err){toast(err.message);}}
+let wakeLock=null;
+async function wallDisplay(){const on=!document.body.classList.contains('wall-display');document.body.classList.toggle('wall-display',on);if(on){go('home');try{await document.documentElement.requestFullscreen?.();}catch{}try{wakeLock=await navigator.wakeLock?.request('screen');}catch{}toast('Wall display on — tap Exit display to return');}else{try{if(document.fullscreenElement)await document.exitFullscreen();await wakeLock?.release();}catch{}wakeLock=null;}}
+function seedShowcase(){if(!DEMO||ls.get('fh.demoSeeded',false))return;loadSample();const t=L.today();people().forEach((p,i)=>{store.put('routine',{title:['Coffee ready for tomorrow','Reset the kitchen','Pack the sports bag','Read for 20 minutes'][i%4],icon:['☕','✨','🎒','📚'][i%4],people:[p.id],days:[],time:['21:00','19:30','20:00','19:00'][i%4],active:true,remind:false,nag:0});store.put('goal',{id:'goal_'+p.id,title:['Coffee date together','A quiet movie night','Choose our next adventure','Pick Friday’s dessert'][i%4],target:10});});for(let i=0;i<7;i++){const r=RECIPES[i%RECIPES.length];store.put('mealplan',{id:'mp_'+L.addDays(t,i),date:L.addDays(t,i),recipeId:r.id});}store.put('event',{date:t,title:'A walk & a little fresh air',start:'17:00',end:'17:45',category:'family',people:[],location:'The neighbourhood trail',repeat:{freq:'none'}});store.put('note',{text:'Friday is pizza night. Everyone gets to pick a topping! 🍕',by:'kate',at:Date.now(),pinned:true});ls.set('fh.demoSeeded',true);}
+
 /* =====================================================================
    Device preferences (per device, not shared)
    ===================================================================== */
 const prefs = Object.assign({
-  theme: 'auto', me: '', view: 'month', cursor: L.today(), filter: [], cat: '', split: false,
-  weekStart: 0, needsList: 'groceries', needsFor: '', mealCuisine: 'all', mealType: 'all', mealFav: false, mealSearch: '',
+  theme: 'light', me: '', view: 'month', cursor: L.today(), filter: [], cat: '', split: false,
+  weekStart: 1, needsList: 'groceries', needsFor: '', mealCuisine: 'all', mealType: 'all', mealFav: false, mealSearch: '',
   weather: true, dayStart: 7,
 }, ls.get('fh.prefs', {}));
 prefs.cursor = L.today();
@@ -259,6 +281,7 @@ function applyTheme() {
   if (t === 'auto') t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   document.documentElement.dataset.theme = t;
   const meta = document.querySelector('meta[name="theme-color"]');
+  const toggle=$('[data-act="light-toggle"]');if(toggle){toggle.innerHTML=icon(t==='light'?'moon':'sun');toggle.setAttribute('aria-label',t==='light'?'Switch to dark theme':'Switch to light theme');}
   if (meta) meta.content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#ffffff';
 }
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => prefs.theme === 'auto' && applyTheme());
@@ -266,7 +289,7 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', (
 /* =====================================================================
    Routing
    ===================================================================== */
-const PAGES = ['home', 'calendar', 'needs', 'meals', 'person', 'settings'];
+const PAGES = ['home', 'calendar', 'chores', 'needs', 'meals', 'person', 'settings'];
 function route() {
   const [page, arg] = (location.hash.replace(/^#\/?/, '') || 'home').split('/');
   let decoded = '';
@@ -349,6 +372,7 @@ function renderLock() {
           <button type="submit" class="go" aria-label="Unlock">➜</button>
         </div>
       </form>
+      <a class="lock-demo-link" href="?demo=1">Explore the interactive demo ${icon('right',14)}</a>
       ${store.isShared ? '<p class="tiny muted">🔒 Shared family calendar · syncs across devices</p>' : `<p class="tiny muted preview-note">Preview mode · data stays on this device${ls.get('fh.previewPin', '') ? '' : ` · starter PIN <b>${esc(CONFIG.PREVIEW_PIN || '1234')}</b>`}</p>`}
       ${store.isShared ? `<details class="adv connection-help"><summary>Connection help</summary><p class="tiny muted">If the server link is wrong, correct it here. Your saved data stays on this device.</p><form data-submit="set-api"><label class="field"><span class="label">Family server link</span><input class="input" name="url" type="url" value="${esc(store.apiUrl)}" required/></label><button class="btn" type="submit">Save link</button></form></details>` : ''}
     </div>
@@ -389,32 +413,26 @@ function askWhoAmI() {
 /* =====================================================================
    Shell (header, nav, sidebar)
    ===================================================================== */
-const NAV = [
-  { page: 'home', icon: '🏠', label: 'Home' },
-  { page: 'calendar', icon: '📅', label: 'Calendar' },
-  { page: 'needs', icon: '🛒', label: 'Needs' },
-  { page: 'meals', icon: '🍽️', label: 'Meals' },
-  { page: 'settings', icon: '⚙️', label: 'Settings' },
-];
+const NAV = [{page:'home',icon:icon('home'),label:'Overview'},{page:'calendar',icon:icon('calendar'),label:'Calendar'},{page:'chores',icon:icon('chores'),label:'Chores & stars'},{page:'meals',icon:icon('meals'),label:'Meal planner'},{page:'needs',icon:icon('shopping'),label:'Family lists'},{page:'settings',icon:icon('settings'),label:'Settings'}];
 function renderShell() {
   document.body.classList.remove('locked');
   app.innerHTML = `
   <div class="shell">
     <aside class="sidebar">
-      <a class="brand" href="#home"><span class="brand-logo">🏡</span><span class="brand-name" id="brand-name"></span></a>
+      <a class="brand" href="#home"><span class="brand-logo">${icon('home',21)}</span><span class="brand-name" id="brand-name"></span></a>
       <nav class="side-nav">${NAV.map(n => `<a href="#${n.page}" data-page="${n.page}" class="side-link"><span class="ico">${n.icon}</span>${n.label}</a>`).join('')}</nav>
       <div class="side-people" id="side-people"></div>
-      <button class="btn primary block" data-act="new-event">＋ New event</button>
+      <button class="btn primary block" data-act="quick-add">${icon('plus',17)} Create something</button><button class="sidebar-demo" data-act="open-demo">${icon('spark',17)} Explore the demo ${icon('right',14)}</button><div class="sidebar-tagline">A calmer kind of family life.</div>
       <div class="side-foot" id="side-sync"></div>
     </aside>
     <div class="content">
       <header class="topbar">
-        <a class="brand mobile-only" href="#home"><span class="brand-logo">🏡</span><span class="brand-name" id="brand-name-m"></span></a>
-        <div class="top-title" id="top-title"></div>
+        <a class="brand mobile-only" href="#home"><span class="brand-logo">${icon('home',21)}</span><span class="brand-name" id="brand-name-m"></span></a>
+        <div class="top-title" id="top-title"></div><span class="top-clock" id="top-clock"></span>
         <div class="top-actions">
           <span id="sync-pill"></span>
           <a class="icon-btn embed-only" href="./" target="_blank" rel="noopener" title="Open full screen" aria-label="Open full screen">↗</a>
-          <button class="icon-btn" data-act="cycle-theme" title="Change theme" aria-label="Change theme">🎨</button>
+          <button class="icon-btn" data-act="search-open" title="Find something (⌘K)" aria-label="Search">${icon('search')}</button><button class="icon-btn" data-act="light-toggle" title="Switch light / dark" aria-label="Switch light or dark theme">${icon('sun')}</button><button class="icon-btn" data-act="display-toggle" title="Wall display" aria-label="Wall display">${icon('expand')}</button><button class="btn sm exit-display" data-act="display-toggle">Exit display</button>
           <a class="icon-btn mobile-only" href="#settings" aria-label="Settings">⚙️</a>
         </div>
       </header>
@@ -422,13 +440,11 @@ function renderShell() {
       <div id="due-banner" class="due-banner" role="status" hidden></div>
       <main id="main" class="main" tabindex="-1"></main>
     </div>
-    <nav class="bottom-nav" aria-label="Main">
-      ${NAV.slice(0, 2).map(n => `<a href="#${n.page}" data-page="${n.page}" class="nav-btn"><span class="ico">${n.icon}</span><span>${n.label}</span></a>`).join('')}
-      <button class="nav-add" data-act="new-event" aria-label="New event">＋</button>
-      ${NAV.slice(2, 4).map(n => `<a href="#${n.page}" data-page="${n.page}" class="nav-btn"><span class="ico">${n.icon}</span><span>${n.label}</span></a>`).join('')}
-    </nav>
+    <nav class="bottom-nav" aria-label="Main">${NAV.filter(n=>n.page!=='settings').map(n=>`<a href="#${n.page}" data-page="${n.page}" class="nav-btn"><span class="ico">${n.icon}</span><span>${n.label.replace(' & stars','').replace('Meal planner','Meals').replace('Family lists','Lists')}</span></a>`).join('')}</nav>
+    ${DEMO?'<div class="demo-banner"><span>✦ Demo space · try anything</span><a href="./">Back to your family</a></div>':''}
   </div>`;
   renderShellState();
+  applyTheme();
 }
 function renderShellState() {
   const r = route();
@@ -440,6 +456,7 @@ function renderShellState() {
   renderSync();
 }
 function syncLabel() {
+  if(DEMO)return {cls:'local',text:'Demo space'};
   const s = store.status;
   if (store.storageError) return { cls: 'err', text: 'Storage unavailable' };
   if (!store.isShared) return { cls: 'local', text: 'Preview · this device' };
@@ -474,12 +491,14 @@ function renderPage(resetScroll = false) {
   if (!main) return;
   const r = route();
   const top = resetScroll ? 0 : main.scrollTop;
-  const title = { home: '', calendar: 'Calendar', needs: 'Needs & Lists', meals: 'Picky Eats', settings: 'Settings', person: personById(r.arg)?.name || '' }[r.page];
+  const title = { home: 'The family hub', calendar: 'Calendar', chores: 'Chores & stars', needs: 'Family lists', meals: 'At the table', settings: 'Settings', person: personById(r.arg)?.name || '' }[r.page];
   $('#top-title').textContent = title;
   document.body.dataset.page = r.page;
-  const html = ({ home: viewHome, calendar: viewCalendar, needs: viewNeeds, meals: viewMeals, person: viewPerson, settings: viewSettings }[r.page] || viewHome)(r.arg);
+  const html = ({ home: viewHome, calendar: viewCalendar, chores: viewChores, needs: viewNeeds, meals: viewMeals, person: viewPerson, settings: viewSettings }[r.page] || viewHome)(r.arg);
   main.innerHTML = html;
   main.scrollTop = top;
+  updateClock();
+  if (r.page === 'home' && resetScroll && window.innerWidth<640) {const day=$('.board-day.is-today'),scroll=$('.board-scroll'),grid=$('.board-grid');if(day&&scroll&&grid)scroll.scrollLeft=day.offsetLeft-grid.offsetLeft;}
   if (r.page === 'calendar') afterCalendarRender(resetScroll);
 }
 // avoid clobbering what someone is typing when a remote update arrives
@@ -553,129 +572,42 @@ function checklistCard(personId = '') {
     ${list.length ? `<div class="checklist">${rows}</div>` : `<p class="muted tiny">Nightly jobs with a button to tick off — like ☕ Set coffee machine at 9pm.</p>`}
   </section>`;
 }
+function boardEvent(o) {
+ const p=evPeople(o.ev),color=p[0]?.color||'var(--accent)',past=o.date===L.today()&&!o.allDay&&(L.toMin(o.ev.end)||1440)<new Date().getHours()*60+new Date().getMinutes();
+ return `<div class="board-event ${past?'past':''}" draggable="true" data-event-id="${esc(o.ev.id)}" data-occ-date="${o.date}" style="--pc:${color}">
+ <button class="board-event-main" data-act="open-event" data-id="${esc(o.ev.id)}" data-date="${o.date}"><span class="board-event-time">${L.catById(o.ev.category).icon} ${o.allDay?'All day':L.fmtTime(o.ev.start)}${o.ev.repeat?.freq&&o.ev.repeat.freq!=='none'?'<span title="Repeats">↻</span>':''}</span><b>${esc(o.ev.title)}</b>${o.ev.location?`<small>${icon('pin',12)} ${esc(o.ev.location)}</small>`:''}<span class="board-event-people">${p.map(x=>`<i style="--pc:${x.color}" title="${esc(x.name)}">${esc(x.name[0])}</i>`).join('')}<span>${isEveryone(o.ev)?'Together':esc(p.map(x=>x.name).join(' & '))}</span></span></button>
+ <button class="event-move" data-act="move-dialog" data-id="${esc(o.ev.id)}" data-date="${o.date}" aria-label="Move ${esc(o.ev.title)} to another day">${icon('move',14)}</button></div>`;
+}
+function weekBoard() {
+ const start=L.startOfWeek(prefs.boardDate||L.today(),prefs.weekStart),end=L.addDays(start,6),t=L.today(),occs=occBetween(start,end),days=Array.from({length:7},(_,i)=>L.addDays(start,i)),map=byDay(occs,start,end),hol=holidayMap(start,end);
+ return `<section class="week-board" aria-label="Family week">
+ <div class="board-toolbar"><div><p class="eyebrow">THE FAMILY CALENDAR</p><h2>${L.fmtDate(start,{month:'long',day:'numeric'})} <span class="muted">–</span> ${L.fmtDate(end,{month:start.slice(0,7)===end.slice(0,7)?undefined:'short',day:'numeric'})}</h2></div><div class="row"><span class="drag-hint">${icon('move',14)} Drag to reschedule</span><button class="icon-btn" data-act="board-prev" aria-label="Previous week">${icon('left')}</button><button class="btn sm" data-act="board-today">Today</button><button class="icon-btn" data-act="board-next" aria-label="Next week">${icon('right')}</button><button class="btn primary sm" data-act="new-event">${icon('plus',16)} Add event</button></div></div>
+ <div class="board-filters">${personChips(prefs.filter)}<a class="link tiny" href="#calendar">More calendar views ${icon('right',14)}</a></div>
+ <div class="board-scroll"><div class="board-grid">${days.map(d=>{const events=map[d]||[],wx=weatherFor(d),isToday=d===t;return `<section class="board-day ${isToday?'is-today':''}" data-drop-date="${d}" aria-label="${L.fmtDate(d)}"><button class="board-day-head" data-act="goto-day" data-date="${d}"><span>${L.fmtDate(d,{weekday:'short'})}${isToday?'<i>Today</i>':''}</span><div><b>${L.parse(d).getDate()}</b>${wx?`<span class="day-forecast">${wx.icon}<small>${wx.hi}°</small></span>`:''}</div></button><div class="board-day-events">${(hol[d]||[]).map(h=>`<div class="board-holiday">${h.icon} ${esc(h.name)}</div>`).join('')}${events.map(boardEvent).join('')}${!events.length?`<button class="board-empty" data-act="new-event" data-date="${d}" aria-label="Add event on ${L.fmtDate(d)}">${icon('plus',19)}<span>A little breathing room</span></button>`:''}</div><button class="board-add" data-act="new-event" data-date="${d}">${icon('plus',14)} Add</button></section>`;}).join('')}</div></div>
+ </section>`;
+}
 function viewHome() {
-  const t = L.today();
-  const s = settings();
-  const occToday = occBetween(t, t);
-  const week = occBetween(L.addDays(t, 1), L.addDays(t, 7));
-  const wk = weather && prefs.weather ? weather : null;
-  const w = wk && wk.now ? L.weatherInfo(wk.now.code) : null;
-  const wd = wk && wk.days[t];
-  const hol = holidayMap(t, L.addDays(t, 60));
-  const todayHol = hol[t] || [];
-
-  // per person next event
-  const soon = occBetween(t, L.addDays(t, 14), { filter: [], cat: '' });
-  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-  const personCards = people().map(p => {
-    const mine = soon.filter(o => !o.ev.people?.length || o.ev.people.includes(p.id));
-    const next = mine.find(o => o.date > t || o.allDay || (L.toMin(o.ev.end || o.ev.start) ?? 0) >= nowMin);
-    const todayCount = mine.filter(o => o.date === t).length;
-    const weekCount = mine.filter(o => o.date <= L.addDays(t, 6)).length;
-    const needs = store.list('need').filter(n => !n.done && n.for === p.id).length;
-    const stars = starsFor(p.id);
-    return `<a class="person-card" href="#person/${p.id}" style="--pc:${p.color};--pi:${L.ink(p.color)}">
-      <div class="pc-top">${avatar(p)}<div><b>${esc(p.name)}</b><span class="muted tiny">${todayCount ? `${todayCount} today` : 'Free today'} · ${weekCount} this week</span></div></div>
-      <div class="pc-next">${next ? `<span class="ev-ico sm">${L.catById(next.ev.category).icon}</span><span><b>${esc(next.ev.title)}</b><br><span class="muted tiny">${esc(L.relDay(next.date))}${next.allDay ? '' : ' · ' + L.fmtTime(next.ev.start)}</span></span>` : '<span class="muted tiny">Nothing coming up</span>'}</div>
-      <span class="pc-badges">${stars ? `<span class="pc-badge" title="Checklist items done this week">⭐ ${stars}</span>` : ''}${needs ? `<span class="pc-badge">🛒 ${needs}</span>` : ''}</span>
-    </a>`;
-  }).join('');
-
-  // upcoming grouped
-  const groups = {};
-  week.forEach(o => (groups[o.date] ||= []).push(o));
-  const upcoming = Object.keys(groups).sort().map(d => {
-    const routine = groups[d].filter(isRoutine), rest = groups[d].filter(o => !isRoutine(o));
-    return `<div class="day-group"><div class="dg-head"><b>${esc(L.relDay(d))}</b><span class="muted tiny">${L.fmtDate(d, { month: 'short', day: 'numeric' })}</span>${wk && wk.days[d] ? `<span class="wx-mini">${L.weatherInfo(wk.days[d].code).icon} ${wk.days[d].hi}°</span>` : ''}</div>${rest.map(o => evRow(o, { compact: true })).join('')}${routineLine(routine, d)}</div>`;
-  }).join('');
-
-  // needs snapshot
-  const needs = store.list('need').filter(n => !n.done);
-  const needCounts = L.NEED_LISTS.map(l => ({ ...l, n: needs.filter(x => x.list === l.id).length })).filter(l => l.n);
-  const urgent = needs.filter(n => n.urgent).slice(0, 4);
-
-  // dinner tonight
-  const plan = store.get('mp_' + t);
-  const planned = plan && (plan.recipeId ? recipeById(plan.recipeId) : null);
-  const picks = dailyPicks(t, 3);
-
-  // countdowns
-  const cds = [];
-  soon.concat(occBetween(L.addDays(t, 15), L.addDays(t, 90), { filter: [], cat: '' })).forEach(o => {
-    if ((o.ev.countdown || o.ev.category === 'birthday') && o.date > t && !cds.find(c => c.key === o.ev.id)) cds.push({ key: o.ev.id, date: o.date, name: o.ev.title, icon: L.catById(o.ev.category).icon });
-  });
-  Object.values(hol).flat().forEach(h => { if (h.date > t && !['Valentine\'s Day'].includes(h.name)) cds.push({ key: h.name, date: h.date, name: h.name, icon: h.icon }); });
-  cds.sort((a, b) => a.date.localeCompare(b.date));
-
-  // week mix
-  const mix = {};
-  occBetween(t, L.addDays(t, 6)).forEach(o => mix[o.ev.category] = (mix[o.ev.category] || 0) + 1);
-
-  // notes
-  const notes = store.list('note').sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (b.at || 0) - (a.at || 0)).slice(0, 8);
-
-  return `
-  <section class="hero card">
-    <div class="hero-text">
-      <p class="eyebrow">${esc(L.fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}</p>
-      <h1>${greeting()}${me() ? ', ' + esc(me().name) : ''}!</h1>
-      <p class="muted">${occToday.length ? `${occToday.length} thing${occToday.length > 1 ? 's' : ''} on today` : 'Nothing planned today'}${todayHol.length ? ' · ' + todayHol.map(h => h.icon + ' ' + esc(h.name)).join(', ') : ''}</p>
-      <div class="hero-actions">
-        <button class="btn primary" data-act="new-event">＋ Event</button>
-        <button class="btn" data-act="quick-need">＋ Need</button>
-        <button class="btn" data-act="new-note">📝 Note</button>
-      </div>
-    </div>
-    ${w ? `<button class="hero-wx" data-act="weather-detail" title="${esc(s.location?.name || '')}"><span class="wx-ico">${w.icon}</span><span class="wx-t">${wk.now.t}°</span><span class="muted tiny">${esc(w.label)}${wd ? ` · H ${wd.hi}° L ${wd.lo}°` : ''}</span><span class="muted tiny">${esc(s.location?.name || '')}</span></button>` : ''}
-  </section>
-
-  ${personChips(prefs.filter)}
-
-  <div class="dash">
-    ${checklistCard()}
-    <section class="card pad d-today">
-      <div class="sec-head"><h2>Today</h2><button class="link" data-act="goto-day" data-date="${t}">Day view →</button></div>
-      ${occToday.length ? `<div class="timeline">${occToday.map(o => evRow(o)).join('')}</div>` : `<div class="empty"><span>🌤️</span><p>Nothing on the calendar today.</p><button class="btn sm" data-act="new-event" data-date="${t}">Add something</button></div>`}
-    </section>
-
-    <section class="d-people">
-      <div class="person-grid">${personCards}</div>
-    </section>
-
-    <section class="card pad d-dinner">
-      <div class="sec-head"><h2>🍽️ Tonight's dinner</h2><a class="link" href="#meals">Picky Eats →</a></div>
-      ${planned ? `<button class="dinner-planned" data-act="open-recipe" data-id="${planned.id}"><span class="big-emoji">${planned.emoji}</span><span><b>${esc(planned.name)}</b><br><span class="muted tiny">${cuisineFlag(planned.cuisine)} ${esc(cuisineName(planned.cuisine))} · ${planned.time} min</span></span></button>`
-        : plan && plan.text ? `<div class="dinner-planned"><span class="big-emoji">🍲</span><b>${esc(plan.text)}</b></div>`
-        : `<p class="muted tiny">Not planned yet — today's picky-proof ideas:</p><div class="mini-recipes">${picks.map(r => `<button class="mini-recipe" data-act="open-recipe" data-id="${r.id}"><span>${r.emoji}</span><b>${esc(r.name)}</b><small>${cuisineFlag(r.cuisine)} ${r.time} min</small></button>`).join('')}</div>`}
-    </section>
-
-    <section class="card pad d-upcoming">
-      <div class="sec-head"><h2>Next 7 days</h2><button class="link" data-act="goto-view" data-view="week">Week →</button></div>
-      ${upcoming || '<p class="muted">Clear week ahead.</p>'}
-    </section>
-
-    <section class="card pad d-needs">
-      <div class="sec-head"><h2>🛒 Needs</h2><a class="link" href="#needs">All lists →</a></div>
-      <form class="quick-add" data-submit="dash-need"><input name="text" placeholder="Add to groceries…" aria-label="Add a need" /><button class="btn sm primary">Add</button></form>
-      ${needCounts.length ? `<div class="need-counts">${needCounts.map(l => `<button class="need-count" data-act="goto-needs" data-list="${l.id}"><span>${l.icon}</span><b>${l.n}</b><small>${esc(l.name)}</small></button>`).join('')}</div>` : '<p class="muted tiny">All stocked up!</p>'}
-      ${urgent.length ? `<div class="urgent-list">${urgent.map(n => `<div class="urgent">❗ ${esc(n.text)}${n.for && personById(n.for) ? ` <span class="tag" style="--pc:${personById(n.for).color}">${esc(personById(n.for).name)}</span>` : ''}</div>`).join('')}</div>` : ''}
-    </section>
-
-    <section class="card pad d-notes">
-      <div class="sec-head"><h2>📌 Fridge notes</h2><button class="link" data-act="new-note">＋ Add</button></div>
-      ${notes.length ? `<div class="notes">${notes.map(n => { const p = personById(n.by); return `<div class="note" style="--pc:${p ? p.color : 'var(--accent)'}"><p>${esc(n.text)}</p><div class="note-foot"><span>${p ? esc(p.name) : ''} · ${ago(n.at || 0)}</span><span><button class="icon-btn xs" data-act="pin-note" data-id="${n.id}" title="Pin">${n.pinned ? '📌' : '📍'}</button><button class="icon-btn xs" data-act="del-note" data-id="${n.id}" title="Remove">✕</button></span></div></div>`; }).join('')}</div>` : '<p class="muted tiny">Leave a note for the family — "Practice moved to 6!"</p>'}
-    </section>
-
-    <section class="card pad d-count">
-      <div class="sec-head"><h2>⏳ Countdowns</h2></div>
-      ${cds.length ? `<div class="countdowns">${cds.slice(0, 5).map(c => { const d = L.diffDays(t, c.date); return `<div class="cd"><span class="cd-ico">${c.icon}</span><span class="cd-name">${esc(c.name)}<small class="muted">${L.fmtDate(c.date, { month: 'short', day: 'numeric' })}</small></span><b>${d}<small>day${d === 1 ? '' : 's'}</small></b></div>`; }).join('')}</div>` : '<p class="muted tiny">Birthdays and events marked "countdown" show here.</p>'}
-    </section>
-
-    <section class="card pad d-mix">
-      <div class="sec-head"><h2>This week</h2></div>
-      ${Object.keys(mix).length ? `<div class="mix">${Object.entries(mix).sort((a, b) => b[1] - a[1]).map(([id, n]) => { const c = L.catById(id); return `<button class="mix-item" data-act="filter-cat-go" data-cat="${id}" style="--cc:${c.color}"><span>${c.icon}</span><b>${n}</b><small>${esc(c.name)}</small></button>`; }).join('')}</div>` : '<p class="muted tiny">No activities this week yet.</p>'}
-    </section>
-  </div>`;
+ const t=L.today(),todayEvents=occBetween(t,t),tasks=todaysRoutines(t),progress=taskProgress(tasks,rt=>!!routineLog(rt,t)),needCount=store.list('need').filter(n=>!n.done).length,plan=store.get('mp_'+t),recipe=plan?.recipeId?recipeById(plan.recipeId):null;
+ const next=todayEvents.find(o=>o.allDay||(L.toMin(o.ev.end)||1440)>=new Date().getHours()*60+new Date().getMinutes());
+ const notes=store.list('note').sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)||(b.at||0)-(a.at||0)).slice(0,3);
+ return `<div class="hub-heading"><div><p class="eyebrow">${L.fmtDate(t,{weekday:'long',month:'long',day:'numeric'})}</p><h1>${greeting()}${me()?', '+esc(me().name):''}<span class="heading-spark">✦</span></h1><p class="muted">A little less juggling. A little more together.</p></div><div class="heading-controls"><button class="btn" data-act="quick-add">${icon('plus',16)} Quick add</button><button class="btn display-trigger" data-act="display-toggle">${icon('expand',16)} Wall display</button></div></div>
+ <div class="family-overview">${people().map(p=>{const count=todayEvents.filter(o=>!o.ev.people?.length||o.ev.people.includes(p.id)).length;return `<a class="family-pill" href="#person/${p.id}" style="--pc:${p.color}">${avatar(p,'sm')}<span><b>${esc(p.name)}</b><small>${count?count+' thing'+(count===1?'':'s')+' today':'A lighter day'}</small></span><span class="family-pill-stars">${icon('star',13)} ${starsFor(p.id)}</span></a>`;}).join('')}</div>
+ ${weekBoard()}
+ <div class="hub-bento"><section class="card pad next-card"><div class="sec-head"><h2>${icon('clock',17)} Up next</h2><span class="badge-soft">${todayEvents.length} today</span></div>${next?evRow(next):`<div class="quiet-moment">${icon('sun',35)}<div><b>Space to enjoy today.</b><p class="muted tiny">Your calendar has a little breathing room.</p></div></div>`}<button class="text-action" data-act="goto-day" data-date="${t}">See today's schedule ${icon('right',14)}</button></section>
+ <section class="card pad dinner-card"><div class="sec-head"><h2>${icon('meals',17)} At the table</h2><span class="badge-soft">Tonight</span></div><button class="dinner-feature" data-act="${recipe?'open-recipe':'plan-day'}" ${recipe?`data-id="${recipe.id}"`:`data-date="${t}"`}><span class="dinner-illustration">${recipe?.emoji||'🍝'}</span><span><small class="eyebrow">${plan?'ON THE MENU':'LET’S MAKE A PLAN'}</small><b>${esc(recipe?.name||plan?.text||'What sounds good tonight?')}</b><small class="muted">${recipe?recipe.time+' minutes · family favourite':'Tap to plan an easy family dinner'}</small></span>${icon('right',16)}</button><a class="text-action" href="#meals">Plan the week ${icon('right',14)}</a></section>
+ <section class="card pad daily-card"><div class="sec-head"><h2>${icon('check',17)} Little wins</h2><a class="link tiny" href="#chores">Chore board ${icon('right',12)}</a></div><div class="daily-progress"><b>${progress.done}<small> / ${progress.total}</small></b><span class="muted tiny">jobs done today</span><div class="progress-track"><i style="width:${progress.percent}%"></i></div></div>${tasks.slice(0,3).map(rt=>taskTile(rt)).join('')}<button class="text-action" data-act="new-routine">${icon('plus',13)} Add a daily routine</button></section>
+ <section class="card pad notes-card"><div class="sec-head"><h2>${icon('note',17)} On the fridge</h2><button class="link tiny" data-act="new-note">${icon('plus',13)} Leave a note</button></div>${notes.length?`<div class="sticky-notes">${notes.map((n,i)=>`<div class="sticky-note note-${i}"><p>${esc(n.text)}</p><span>${esc(personById(n.by)?.name||'Family')}<button class="icon-btn xs" data-act="del-note" data-id="${esc(n.id)}" aria-label="Remove note">${icon('close',12)}</button></span></div>`).join('')}</div>`:`<p class="fridge-empty">The little things worth remembering.<br><button class="link" data-act="new-note">Leave your family a note.</button></p>`}</section>
+ <a class="card pad list-teaser" href="#needs"><span class="list-teaser-icon">${icon('shopping',26)}</span><div><p class="eyebrow">A SHARED LITTLE LIST</p><h2>${needCount?needCount+' thing'+(needCount===1?'':'s')+' to pick up':'All stocked up'}</h2><p class="muted tiny">Groceries, sports gear & everything between.</p></div>${icon('right',18)}</a></div>`;
+}
+function taskTile(rt) {
+ const log=routineLog(rt,L.today()),p=(rt.people||[]).map(personById).find(Boolean);
+ return `<div class="task-tile ${log?'is-done':''}" style="--pc:${p?.color||'var(--accent)'}"><button class="task-check" data-act="${log?'routine-undo':'routine-done'}" data-id="${esc(rt.id)}" aria-label="${log?'Undo':'Complete'} ${esc(rt.title)}" aria-pressed="${!!log}">${log?icon('check',16):''}</button><button class="task-tile-main" data-act="edit-routine" data-id="${esc(rt.id)}"><b>${esc(rt.title)}</b><small>${rt.time?L.fmtTime(rt.time):'Any time'}${log?' · Done':p?' · '+esc(p.name):' · Anyone'}</small></button><span class="task-star">${icon('star',14)}</span></div>`;
+}
+function viewChores() {
+ const t=L.today(),tasks=todaysRoutines(t),prog=taskProgress(tasks,rt=>!!routineLog(rt,t));
+ return `<div class="hub-heading"><div><p class="eyebrow">SMALL JOBS. BIG TEAMWORK.</p><h1>Little wins, together<span class="heading-spark">✦</span></h1><p class="muted">Give everyone a part to play. Celebrate every checkmark.</p></div><button class="btn primary" data-act="new-routine">${icon('plus',16)} Add a chore</button></div><div class="chore-summary card"><div class="progress-ring" style="--progress:${prog.percent*3.6}deg"><b>${prog.percent}<small>%</small></b></div><div><h2>${prog.total&&prog.done===prog.total?'Teamwork looks good on you!':prog.done+' of '+prog.total+' jobs done today'}</h2><p class="muted">${prog.total-prog.done?'One little win at a time. You’ve got this.':'Enjoy a well-earned moment together.'}</p></div><button class="btn" data-act="quick-routines">${icon('spark',16)} Routine ideas</button></div>
+ <div class="chore-board">${people().map(p=>{const mine=tasks.filter(rt=>rt.people?.includes(p.id)),done=mine.filter(rt=>routineLog(rt,t)).length,goal=store.get('goal_'+p.id)||{title:'Choose a family activity',target:10},stars=starsFor(p.id),percent=Math.min(100,Math.round(stars/goal.target*100));return `<section class="chore-person card" style="--pc:${p.color}"><header>${avatar(p)}<div><h2>${esc(p.name)}</h2><p>${done} of ${mine.length} done today</p></div><button class="icon-btn" data-act="new-routine" data-person="${p.id}" aria-label="Add chore for ${esc(p.name)}">${icon('plus',18)}</button></header><div class="chore-tasks">${mine.length?mine.map(taskTile).join(''):`<button class="chore-empty" data-act="new-routine" data-person="${p.id}">${icon('plus',24)}<b>A fresh start</b><small>Add ${esc(p.name)}’s first daily routine</small></button>`}</div><div class="reward-card"><div class="reward-count">${icon('star',20)} <b>${stars}</b><span>stars in the last 7 days</span></div><div class="progress-track"><i style="width:${percent}%"></i></div><div class="reward-detail"><span><b>${esc(goal.title)}</b><small>${stars>=goal.target?'Goal reached! Time to celebrate.':Math.max(0,goal.target-stars)+' stars to go'}</small></span><button class="icon-btn xs" data-act="goal-edit" data-id="${p.id}" aria-label="Edit ${esc(p.name)}’s star goal">${icon('edit',14)}</button></div></div></section>`;}).join('')}</div>
+ <section class="card pad shared-chores"><div class="sec-head"><h2>${icon('family',18)} Anyone can pitch in</h2><button class="link" data-act="new-routine">Add a shared job</button></div>${tasks.filter(rt=>!rt.people?.length).map(taskTile).join('')||'<p class="muted">Add a shared job for whoever has a spare moment.</p>'}</section>`;
 }
 
 /* =====================================================================
@@ -1126,6 +1058,7 @@ function viewNeeds() {
   };
   const pSizes = forP ? people().filter(p => p.id === forP) : people();
   return `
+<div class="hub-heading"><div><p class="eyebrow">THE THINGS WE NEED</p><h1>A little list. A lighter mind.<span class="heading-spark">✦</span></h1><p class="muted">Keep the whole family on the same shopping list.</p></div></div>
   <div class="tabs scroll-x" role="tablist">${tabs.map(t => `<button role="tab" class="tab ${list === t.id ? 'on' : ''}" data-act="needs-list" data-list="${t.id}">${t.icon} ${esc(t.name)}${counts(t.id) ? `<b>${counts(t.id)}</b>` : ''}</button>`).join('')}</div>
   <div class="chips-row">${personChips(forP ? [forP] : [], 'needs-for')}</div>
   <form class="card pad add-need" data-submit="add-need">
@@ -1164,7 +1097,7 @@ const prepPlan = () => store.get(PREP_ID) || { id: PREP_ID, recipes: [] };
 function recipeCard(r, big = false) {
   const m = recipeMeta(r.id);
   const likers = (m.likes || []).map(personById).filter(Boolean);
-  return `<button class="recipe-card ${big ? 'big' : ''}" data-act="open-recipe" data-id="${r.id}">
+  return `<button class="recipe-card ${big ? 'big' : ''}" data-act="open-recipe" data-id="${r.id}" draggable="true" data-recipe-id="${r.id}">
     ${r.image ? `<img class="rc-photo" src="${esc(r.image)}/preview" alt="" loading="lazy"/>` : `<span class="rc-emoji">${r.emoji || '🍲'}</span>`}
     <span class="rc-body"><b>${esc(r.name)}</b>
       <span class="rc-meta">${cuisineFlag(r.cuisine)} ${esc(cuisineName(r.cuisine))}${r.time ? ` · ⏱ ${r.time} min` : ''}${r.cook ? ' + ' + esc(r.cook) : ''}${r.level ? ' · ' + esc(r.level) : ''}</span>
@@ -1202,18 +1135,19 @@ function viewMeals() {
   if (q) list = list.filter(r => [r.name, cuisineName(r.cuisine), ...(r.tags || []), ...(r.ingredients || []), r.storage?.freezer && 'freezer', r.storage?.fridge && 'leftovers'].filter(Boolean).join(' ').toLowerCase().includes(q));
   const plan = Array.from({ length: 7 }, (_, i) => {
     const d = L.addDays(wkStart, i); const p = store.get('mp_' + d); const r = p?.recipeId && recipeById(p.recipeId);
-    return `<button class="plan-day ${d === t ? 'today' : ''} ${p ? 'set' : ''}" data-act="plan-day" data-date="${d}"><span class="tiny muted">${DAY_NAMES[L.dow(d)]} ${L.parse(d).getDate()}</span><span class="pd-emoji">${r ? r.emoji || '🍲' : p?.text || p?.recipeName ? '🍲' : '＋'}</span><span class="pd-name">${r ? esc(r.name) : p?.text || p?.recipeName ? esc(p.text || p.recipeName) : '<span class="muted">Plan</span>'}</span></button>`;
+    return `<button class="plan-day ${d === t ? 'today' : ''} ${p ? 'set' : ''}" data-act="plan-day" data-date="${d}" data-drop-meal="${d}"><span class="tiny muted">${DAY_NAMES[L.dow(d)]} ${L.parse(d).getDate()}</span><span class="pd-emoji">${r ? r.emoji || '🍲' : p?.text || p?.recipeName ? '🍲' : '＋'}</span><span class="pd-name">${r ? esc(r.name) : p?.text || p?.recipeName ? esc(p.text || p.recipeName) : '<span class="muted">Plan</span>'}</span></button>`;
   }).join('');
   const healthyPicks = allRecipes().filter(r => r.healthy);
   return `
+<div class="hub-heading"><div><p class="eyebrow">AT THE TABLE</p><h1>Good food. Less guesswork.<span class="heading-spark">✦</span></h1><p class="muted">A week of easy dinners, with room for everyone’s favourites.</p></div><button class="btn" data-act="new-recipe">${icon('plus',16)} Our recipe</button></div>
+  <section class="card pad">
+    <div class="sec-head"><h2>${icon('meals',18)} This week at the table</h2><button class="btn sm" data-act="week-groceries">${icon('shopping',15)} Build shopping list</button></div>
+    <p class="muted tiny meal-plan-hint">Tap a day to plan, or drag a recipe onto it.</p><div class="plan-strip">${plan}</div>
+  </section>
   <section class="card pad meal-hero">
     <div class="sec-head"><div><p class="eyebrow">Daily feed · ${L.fmtDate(t, { weekday: 'long', month: 'short', day: 'numeric' })}</p><h2>Today's picky-proof picks</h2><p class="muted tiny">Fresh picks every day · ${allRecipes().length} recipes · ${healthyPicks.length} healthy · ${allRecipes().filter(r => r.prep).length} meal-prep</p></div>
       <div class="row wrap"><button class="btn sm" data-act="new-picks">🔄 New picks</button><button class="btn sm" data-act="surprise">🎲 Surprise me</button></div></div>
     <div class="picks">${picks.map(r => recipeCard(r, true)).join('')}</div>
-  </section>
-  <section class="card pad">
-    <div class="sec-head"><h2>🗓️ This week's dinners</h2><span class="muted tiny">Tap a day to plan</span></div>
-    <div class="plan-strip">${plan}</div>
   </section>
   ${prepCard()}
   <section class="meal-filters">
@@ -1735,7 +1669,7 @@ const actions = {
       <label class="field"><span class="label">Note</span><input class="input" name="note" value="${esc(n.note || '')}" placeholder="Brand, size, store…" maxlength="160"/></label>
       </div><div class="modal-foot"><span></span><button class="btn primary">Save</button></div></form>`); },
   'clear-done': (el, e) => { e.preventDefault(); const done = store.list('need').filter(n => n.done && (prefs.needsList === 'all' || n.list === prefs.needsList)); done.forEach(n => store.remove(n.id)); renderPage(); toast(`Cleared ${done.length}`, () => done.forEach(n => store.put('need', n))); },
-  'quick-need': () => { prefs.needsList = 'groceries'; savePrefs(); go('needs'); setTimeout(() => $('.add-need input[name=text]')?.focus(), 100); },
+  'quick-need': () => { closeModal(true); prefs.needsList = 'groceries'; savePrefs(); go('needs'); setTimeout(() => $('.add-need input[name=text]')?.focus(), 100); },
   // notes
   'new-note': () => openModal(`<form class="editor" data-submit="save-note"><div class="modal-head"><h2>📝 Fridge note</h2><button type="button" class="icon-btn" data-act="close">✕</button></div><div class="modal-body"><textarea class="input" name="text" rows="4" required maxlength="400" placeholder="Practice moved to 6pm · Pizza Friday! · Library books due" autofocus></textarea></div><div class="modal-foot"><span></span><button class="btn primary">Post note</button></div></form>`),
   'pin-note': el => { const n = store.get(el.dataset.id); if (n) { store.put('note', { ...n, pinned: !n.pinned }); renderPage(); } },
@@ -1844,6 +1778,28 @@ const submits = {
   },
 };
 
+Object.assign(actions, {
+ 'quick-add':quickAdd,'search-open':searchDialog,'search-need':el=>{closeModal(true);prefs.needsList=el.dataset.list;savePrefs();go('needs');},
+ 'light-toggle':()=>{prefs.theme=document.documentElement.dataset.theme==='light'?'dark':'light';savePrefs();applyTheme();toast(prefs.theme==='light'?'A little brighter. Light theme on.':'Dark theme on.');},
+ 'display-toggle':wallDisplay,'open-demo':()=>{window.open(new URL('?demo=1',location.href).href,'_blank','noopener');},
+ 'board-prev':()=>{prefs.boardDate=L.addDays(prefs.boardDate||L.today(),-7);savePrefs();renderPage();},'board-next':()=>{prefs.boardDate=L.addDays(prefs.boardDate||L.today(),7);savePrefs();renderPage();},'board-today':()=>{prefs.boardDate=L.today();savePrefs();renderPage();},
+ 'week-groceries':()=>{const from=L.startOfWeek(L.today(),prefs.weekStart),existing=new Set(store.list('need').filter(n=>!n.done&&n.list==='groceries').map(n=>n.text.toLowerCase())),added=[];for(let i=0;i<7;i++){const p=store.get('mp_'+L.addDays(from,i)),r=p?.recipeId?recipeById(p.recipeId):null;for(const ing of r?.ingredients||[])if(!existing.has(ing.toLowerCase())){existing.add(ing.toLowerCase());added.push(addNeed({text:ing,list:'groceries'}));}}toast(added.length?'Added '+added.length+' ingredients to groceries':'The list already has everything from your planned recipes.',()=>{added.forEach(x=>store.remove(x.id));renderPage();});},
+ 'move-dialog':moveDialog,'goal-edit':el=>goalDialog(el.dataset.id),'quick-routines':()=>routineForm(),
+ 'routine-done':el=>{const rt=store.get(el.dataset.id);if(!rt)return;const finish=person=>{const prev=prefs.me;if(person)prefs.me=person;markRoutine(rt,L.today(),true);prefs.me=prev;closeModal(true);celebrate();renderPage();renderDueBanner();toast('One little win. One more star! ⭐',()=>{markRoutine(rt,L.today(),false);renderPage();});};if(!prefs.me){openModal(`<div class="modal-head"><h2>Who earned this star?</h2><button class="icon-btn" data-act="close" aria-label="Close">${icon('close')}</button></div><div class="modal-body who-grid">${people().map(p=>`<button class="who-btn" data-act="chore-credit" data-person="${p.id}" style="--pc:${p.color}">${avatar(p)}<b>${esc(p.name)}</b></button>`).join('')}</div>`);actions['chore-credit']=el=>finish(el.dataset.person);}else finish();},
+});
+inputs['global-search']=el=>searchFamily(el.value);
+submits['save-goal']=f=>{const fd=new FormData(f),target=Math.min(100,Math.max(1,Number(fd.get('target'))||10));store.put('goal',{id:'goal_'+f.dataset.id,title:String(fd.get('title')||'').trim(),target});closeModal(true);renderPage();toast('A little something to look forward to.');};
+submits['move-event']=f=>{const fd=new FormData(f);moveEvent(f.dataset.id,f.dataset.date,fd.get('date'),fd.get('scope')||'occurrence');};
+let dragItem=null;
+document.addEventListener('dragstart',e=>{const card=e.target.closest('[data-event-id],[data-recipe-id]');if(!card)return;dragItem=card.dataset.recipeId?{kind:'recipe',id:card.dataset.recipeId}:{kind:'event',id:card.dataset.eventId,date:card.dataset.occDate};e.dataTransfer.setData('text/plain',JSON.stringify(dragItem));e.dataTransfer.effectAllowed='move';card.classList.add('is-dragging');});
+document.addEventListener('dragover',e=>{const day=e.target.closest(dragItem?.kind==='recipe'?'[data-drop-meal]':'[data-drop-date]');if(!day||!dragItem)return;e.preventDefault();e.dataTransfer.dropEffect='move';$$('.drag-over').forEach(x=>x.classList.remove('drag-over'));day.classList.add('drag-over');});
+document.addEventListener('drop',e=>{const day=e.target.closest(dragItem?.kind==='recipe'?'[data-drop-meal]':'[data-drop-date]');if(!day||!dragItem)return;e.preventDefault();if(dragItem.kind==='recipe'){const date=day.dataset.dropMeal,prev=store.get('mp_'+date),recipe=recipeById(dragItem.id);store.put('mealplan',{id:'mp_'+date,date,recipeId:recipe.id,recipeName:recipe.name});renderPage();toast('Dinner planned for '+L.relDay(date),()=>{if(prev)store.put('mealplan',prev);else store.remove('mp_'+date);renderPage();});}else moveEvent(dragItem.id,dragItem.date,day.dataset.dropDate);dragItem=null;$$('.drag-over').forEach(x=>x.classList.remove('drag-over'));});
+document.addEventListener('dragend',()=>{dragItem=null;$$('.is-dragging,.drag-over').forEach(x=>x.classList.remove('is-dragging','drag-over'));});
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&store.isUnlocked){e.preventDefault();searchDialog();}});
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&document.body.classList.contains('wall-display')){document.body.classList.remove('wall-display');wakeLock?.release();wakeLock=null;}});
+function updateClock(){const el=$('#top-clock');if(el)el.textContent=new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
+setInterval(updateClock,15000);
+
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
@@ -1894,6 +1850,7 @@ function boot() {
   if (!store.isUnlocked) { renderLock(); return; }
   renderShell();
   maybeSeedRoutines();
+  seedShowcase();
   renderPage(true);
   renderDueBanner();
   store.sync(true);

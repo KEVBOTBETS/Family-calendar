@@ -6,6 +6,19 @@ A responsive calendar and household dashboard with month, week, day, family and 
 
 The supplied `app.js`, `import.js` and `styles.css` are preserved with small compatibility fixes. Missing dependencies, page, storage, recipes, backend, tests and deployment were recreated. The original unavailable recipe library has been replaced by **12 starter recipes**; add your own or use Discover to expand it. Previous family data is not included in these source attachments. Import a JSON backup in Settings if you have one.
 
+## Studio redesign
+
+A bright light theme, warm colours and a responsive seven-day overview now lead the experience. Use the sun/moon button for light or dark, or choose Maple/Aurora in Settings.
+
+- **Overview:** filter family members, move events between days with drag-and-drop, or use each card’s Move button on touchscreens. Moving a repeating event defaults to just that occurrence; the Move dialog also supports the entire series. Undo is available.
+- **Chores & stars:** per-person daily boards, completion celebrations, progress and editable goals. Stars count completed jobs in the last seven days and go to the person who completes them.
+- **Meals:** drag recipes onto the dinner planner, tap to plan on phones, and build a combined grocery list from the week’s planned recipes.
+- **Quick add:** event, routine, list item or fridge note. Search uses the magnifying glass or Ctrl/⌘K.
+- **Wall display:** expands the overview and requests fullscreen and screen wake lock when supported. Exit display returns to the normal app.
+- **Demo:** [interactive showcase](https://kevbotbets.github.io/Family-calendar/?demo=1). Demo data and preferences use separate storage, and the demo cannot connect to the family server.
+
+The interface is an original Family Hub design. There is no affiliation with Skylight.
+
 ## Start
 
 - Preview PIN: **1234**. Preview saves on this device only; its PIN is a convenience lock, not encryption.

@@ -1,15 +1,17 @@
 import CONFIG from './config.js';
+export const DEMO=new URLSearchParams(location.search).get('demo')==='1';
+const storageKey=k=>DEMO?'demo.'+k:k;
 export const uid=(prefix='item')=>prefix+'_'+crypto.randomUUID();
-export const ls={get(k,f=null){try{const v=localStorage.getItem(k);return v===null?f:JSON.parse(v);}catch{return f;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch{return false;}}};
-const session={get(k){try{return sessionStorage.getItem(k);}catch{return null;}},set(k,v){try{sessionStorage.setItem(k,v);}catch{}},remove(k){try{sessionStorage.removeItem(k);}catch{}}};
+export const ls={get(k,f=null){try{const v=localStorage.getItem(storageKey(k));return v===null?f:JSON.parse(v);}catch{return f;}},set(k,v){try{localStorage.setItem(storageKey(k),JSON.stringify(v));return true;}catch{return false;}}};
+const session={get(k){try{return sessionStorage.getItem(storageKey(k));}catch{return null;}},set(k,v){try{sessionStorage.setItem(storageKey(k),v);}catch{}},remove(k){try{sessionStorage.removeItem(storageKey(k));}catch{}}};
 const listeners=new Set();const emit=k=>listeners.forEach(fn=>fn(k));
 let state=ls.get('fh.state',{items:{},pending:[],cursor:0});
 if(!state||typeof state.items!=='object'||!Array.isArray(state.pending))state={items:{},pending:[],cursor:0};
 const persist=()=>{store.storageError=!ls.set('fh.state',state);if(store.storageError)emit('storage');};
-let api=ls.get('fh.apiUrl',CONFIG.API_URL||'');let syncing=false;
+let api=DEMO?'':ls.get('fh.apiUrl',CONFIG.API_URL||'');let syncing=false;
 function validUrl(v){if(!v)return '';const u=new URL(v);if(u.protocol!=='https:'||u.hostname!=='script.google.com'||!/^\/macros\/s\/[\w-]+\/exec$/.test(u.pathname))throw Error('Use the deployed Google Apps Script /exec URL');return u.href;}
-export const store={by:'',status:'idle',statusMessage:'',storageError:false,lastSync:0,remindersRunning:false,token:session.get('fh.token')||'',isUnlocked:session.get('fh.unlocked')==='yes',
- get apiUrl(){return api;},set apiUrl(v){api=validUrl(v.trim());ls.set('fh.apiUrl',api);state.cursor=0;persist();},get isShared(){return !!api;},get pending(){return state.pending;},on(fn){listeners.add(fn);return()=>listeners.delete(fn);},
+export const store={by:'',status:'idle',statusMessage:'',storageError:false,lastSync:0,remindersRunning:false,token:session.get('fh.token')||'',isUnlocked:DEMO||session.get('fh.unlocked')==='yes',
+ get apiUrl(){return api;},set apiUrl(v){if(DEMO)throw Error('Demo mode stays on this device.');api=validUrl(v.trim());ls.set('fh.apiUrl',api);state.cursor=0;persist();},get isShared(){return !!api;},get pending(){return state.pending;},on(fn){listeners.add(fn);return()=>listeners.delete(fn);},
  list(type){return Object.values(state.items).filter(x=>!x.deleted&&x.type===type).map(x=>structuredClone(x));},get(id){const x=state.items[id];return x&&!x.deleted?structuredClone(x):null;},meta(id){return state.items[id]?structuredClone(state.items[id]):null;},
  put(type,item){const value={...structuredClone(item),id:item.id||uid(type),type,updatedAt:Date.now(),updatedBy:this.by};state.items[value.id]=value;if(this.isShared){state.pending=state.pending.filter(x=>x.id!==value.id);state.pending.push(value);}persist();emit('data');if(this.isShared&&this.isUnlocked)this.sync();return structuredClone(value);},
  remove(id){const old=this.get(id);if(!old)return null;state.items[id]={...old,deleted:true,updatedAt:Date.now()};if(this.isShared){state.pending=state.pending.filter(x=>x.id!==id);state.pending.push(state.items[id]);}persist();emit('data');if(this.isShared&&this.isUnlocked)this.sync();return old;},
@@ -25,4 +27,4 @@ export const store={by:'',status:'idle',statusMessage:'',storageError:false,last
  }finally{syncing=false;emit('status');}},
 };
 setInterval(()=>store.sync(),(CONFIG.SYNC_SECONDS||25)*1000);
-window.addEventListener('storage',e=>{if(e.key==='fh.state'){state=ls.get('fh.state',state);emit('remote');}});
+window.addEventListener('storage',e=>{if(e.key===storageKey('fh.state')){state=ls.get('fh.state',state);emit('remote');}});

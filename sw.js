@@ -1,8 +1,8 @@
 // Cache only this app: other GitHub Pages projects share this origin.
 const PREFIX = 'family-hub-' + new URL('./', self.location.href).pathname + '-';
-const CACHE = PREFIX + 'v4';
+const CACHE = PREFIX + 'v5';
 const SCOPE = new URL('./', self.location.href);
-const SHELL = ['./', './index.html', './styles.css?v=4', './app.js?v=4', './store.js', './lib.js', './meals.js', './import.js', './config.js', './manifest.webmanifest', './assets/icon.svg', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/apple-touch-icon.png'];
+const SHELL = ['./', './index.html', './styles.css?v=5', './app.js?v=5', './store.js', './interactions.js', './lib.js', './meals.js', './import.js', './config.js', './manifest.webmanifest', './assets/icon.svg', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/apple-touch-icon.png'];
 
 self.addEventListener('install', event => {
   // A failed download must not replace an existing complete offline copy.
